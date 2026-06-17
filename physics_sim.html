@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>역학 시뮬레이션</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Noto Sans KR',sans-serif;background:#f0f4ff;color:#222;min-height:100vh}
+header{background:#3b5bdb;color:#fff;padding:1rem 2rem;display:flex;align-items:center;gap:12px}
+header h1{font-size:1.3rem;font-weight:700}
+header span{font-size:0.85rem;opacity:0.8}
+nav{display:flex;gap:0;background:#fff;border-bottom:2px solid #e0e7ff;overflow-x:auto}
+.tab{padding:0.75rem 1.25rem;font-size:0.9rem;font-weight:600;cursor:pointer;color:#666;border-bottom:3px solid transparent;white-space:nowrap;transition:all 0.2s}
+.tab.active{color:#3b5bdb;border-bottom-color:#3b5bdb;background:#f0f4ff}
+.tab:hover:not(.active){background:#f8f9fa;color:#3b5bdb}
+main{padding:1.5rem;max-width:900px;margin:0 auto}
+.sim-panel{display:none}
+.sim-panel.active{display:block}
+canvas{display:block;border-radius:12px;border:2px solid #e0e7ff;background:#fff;width:100%;max-width:100%}
+.controls{background:#fff;border-radius:12px;padding:1.25rem;margin:1rem 0;border:1.5px solid #e0e7ff}
+.controls h3{font-size:0.85rem;color:#3b5bdb;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:1rem}
+.ctrl-row{display:flex;align-items:center;gap:12px;margin-bottom:0.75rem;flex-wrap:wrap}
+.ctrl-row label{font-size:0.88rem;font-weight:600;color:#444;min-width:120px}
+.ctrl-row input[type=range]{flex:1;min-width:120px;accent-color:#3b5bdb}
+.val-badge{background:#e0e7ff;color:#3b5bdb;font-size:0.82rem;font-weight:700;padding:2px 10px;border-radius:20px;min-width:60px;text-align:center}
+.btns{display:flex;gap:10px;margin-top:1rem;flex-wrap:wrap}
+button{padding:0.5rem 1.2rem;border-radius:8px;font-size:0.88rem;font-weight:700;cursor:pointer;border:none;transition:all 0.15s}
+.btn-primary{background:#3b5bdb;color:#fff}
+.btn-primary:hover{background:#2f4ac7}
+.btn-secondary{background:#e0e7ff;color:#3b5bdb}
+.btn-secondary:hover{background:#c5d0f5}
+.btn-danger{background:#ff6b6b;color:#fff}
+.btn-danger:hover{background:#e85555}
+.formula-box{background:#fffbf0;border:1.5px solid #ffd43b;border-radius:10px;padding:0.9rem 1.2rem;margin-top:1rem}
+.formula-box h4{font-size:0.8rem;color:#e67700;font-weight:700;margin-bottom:0.4rem}
+.formula-box p{font-size:0.95rem;font-family:monospace;color:#555}
+.stats{display:flex;gap:10px;flex-wrap:wrap;margin-top:0.75rem}
+.stat{background:#f0f4ff;border-radius:8px;padding:0.5rem 0.9rem;font-size:0.82rem}
+.stat strong{display:block;color:#3b5bdb;font-size:1rem}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>⚙️ 고등학교 물리 — 역학 시뮬레이션</h1>
+    <span>슬라이더를 조절하여 물리 현상을 직접 탐구해보세요</span>
+  </div>
+</header>
+
+<nav>
+  <div class="tab active" onclick="showTab(0)">① 등가속도 운동</div>
+  <div class="tab" onclick="showTab(1)">② 포물선 운동</div>
+  <div class="tab" onclick="showTab(2)">③ 뉴턴 제2법칙</div>
+  <div class="tab" onclick="showTab(3)">④ 자유낙하</div>
+</nav>
+
+<main>
+
+<!-- 1. 등가속도 운동 -->
+<div class="sim-panel active" id="panel0">
+  <canvas id="c0" height="200"></canvas>
+  <div class="controls">
+    <h3>파라미터 조절</h3>
+    <div class="ctrl-row"><label>초기 속도 v₀</label><input type="range" id="v0_0" min="0" max="200" value="80" step="1"><span class="val-badge" id="v0_0_v">80 m/s</span></div>
+    <div class="ctrl-row"><label>가속도 a</label><input type="range" id="a0" min="-100" max="100" value="30" step="1"><span class="val-badge" id="a0_v">30 m/s²</span></div>
+    <div class="btns">
+      <button class="btn-primary" onclick="startSim(0)">▶ 시작</button>
+      <button class="btn-secondary" onclick="resetSim(0)">↺ 초기화</button>
+    </div>
+    <div class="stats">
+      <div class="stat"><strong id="s0_t">0.00 s</strong>시간 t</div>
+      <div class="stat"><strong id="s0_v">0 m/s</strong>속도 v</div>
+      <div class="stat"><strong id="s0_x">0 m</strong>변위 x</div>
+    </div>
+  </div>
+  <div class="formula-box">
+    <h4>핵심 공식</h4>
+    <p>v = v₀ + at &nbsp;&nbsp;|&nbsp;&nbsp; x = v₀t + ½at² &nbsp;&nbsp;|&nbsp;&nbsp; v² = v₀² + 2ax</p>
+  </div>
+</div>
+
+<!-- 2. 포물선 운동 -->
+<div class="sim-panel" id="panel1">
+  <canvas id="c1" height="300"></canvas>
+  <div class="controls">
+    <h3>파라미터 조절</h3>
+    <div class="ctrl-row"><label>발사 속력 v₀</label><input type="range" id="v0_1" min="10" max="120" value="60" step="1"><span class="val-badge" id="v0_1_v">60 m/s</span></div>
+    <div class="ctrl-row"><label>발사 각도 θ</label><input type="range" id="ang1" min="5" max="85" value="45" step="1"><span class="val-badge" id="ang1_v">45°</span></div>
+    <div class="btns">
+      <button class="btn-primary" onclick="startSim(1)">▶ 시작</button>
+      <button class="btn-secondary" onclick="resetSim(1)">↺ 초기화</button>
+    </div>
+    <div class="stats">
+      <div class="stat"><strong id="s1_range">0 m</strong>최대 수평거리</div>
+      <div class="stat"><strong id="s1_h">0 m</strong>최대 높이</div>
+      <div class="stat"><strong id="s1_t">0.0 s</strong>비행 시간</div>
+    </div>
+  </div>
+  <div class="formula-box">
+    <h4>핵심 공식</h4>
+    <p>x = v₀cosθ·t &nbsp;&nbsp;|&nbsp;&nbsp; y = v₀sinθ·t − ½gt² &nbsp;&nbsp;|&nbsp;&nbsp; R = v₀²sin2θ / g</p>
+  </div>
+</div>
+
+<!-- 3. 뉴턴 제2법칙 -->
+<div class="sim-panel" id="panel2">
+  <canvas id="c2" height="200"></canvas>
+  <div class="controls">
+    <h3>파라미터 조절</h3>
+    <div class="ctrl-row"><label>힘 F</label><input type="range" id="F2" min="10" max="500" value="100" step="10"><span class="val-badge" id="F2_v">100 N</span></div>
+    <div class="ctrl-row"><label>질량 m</label><input type="range" id="m2" min="1" max="50" value="10" step="1"><span class="val-badge" id="m2_v">10 kg</span></div>
+    <div class="ctrl-row"><label>마찰 계수 μ</label><input type="range" id="mu2" min="0" max="0.9" value="0.1" step="0.05"><span class="val-badge" id="mu2_v">0.10</span></div>
+    <div class="btns">
+      <button class="btn-primary" onclick="startSim(2)">▶ 시작</button>
+      <button class="btn-secondary" onclick="resetSim(2)">↺ 초기화</button>
+    </div>
+    <div class="stats">
+      <div class="stat"><strong id="s2_a">0.00 m/s²</strong>가속도 a</div>
+      <div class="stat"><strong id="s2_v">0.0 m/s</strong>속도 v</div>
+      <div class="stat"><strong id="s2_f">0 N</strong>알짜힘 F_net</div>
+    </div>
+  </div>
+  <div class="formula-box">
+    <h4>핵심 공식</h4>
+    <p>F = ma &nbsp;&nbsp;|&nbsp;&nbsp; a = F/m &nbsp;&nbsp;|&nbsp;&nbsp; F_net = F − μmg</p>
+  </div>
+</div>
+
+<!-- 4. 자유낙하 -->
+<div class="sim-panel" id="panel3">
+  <canvas id="c3" height="320"></canvas>
+  <div class="controls">
+    <h3>파라미터 조절</h3>
+    <div class="ctrl-row"><label>초기 높이 h</label><input type="range" id="h3" min="20" max="200" value="100" step="5"><span class="val-badge" id="h3_v">100 m</span></div>
+    <div class="ctrl-row"><label>중력 환경</label>
+      <select id="planet3" style="flex:1;padding:6px 10px;border-radius:8px;border:1.5px solid #e0e7ff;font-size:0.9rem;color:#333">
+        <option value="9.8">지구 (9.8 m/s²)</option>
+        <option value="1.62">달 (1.62 m/s²)</option>
+        <option value="3.72">화성 (3.72 m/s²)</option>
+        <option value="24.8">목성 (24.8 m/s²)</option>
+      </select>
+    </div>
+    <div class="btns">
+      <button class="btn-primary" onclick="startSim(3)">▶ 낙하!</button>
+      <button class="btn-secondary" onclick="resetSim(3)">↺ 초기화</button>
+    </div>
+    <div class="stats">
+      <div class="stat"><strong id="s3_t">0.00 s</strong>경과 시간</div>
+      <div class="stat"><strong id="s3_v">0.0 m/s</strong>속도</div>
+      <div class="stat"><strong id="s3_y">0 m</strong>낙하 거리</div>
+    </div>
+  </div>
+  <div class="formula-box">
+    <h4>핵심 공식</h4>
+    <p>y = ½gt² &nbsp;&nbsp;|&nbsp;&nbsp; v = gt &nbsp;&nbsp;|&nbsp;&nbsp; v² = 2gh</p>
+  </div>
+</div>
+
+</main>
+
+<script>
+const panels=document.querySelectorAll('.sim-panel');
+const tabs=document.querySelectorAll('.tab');
+let anim=[null,null,null,null];
+let running=[false,false,false,false];
+
+function showTab(i){
+  panels.forEach((p,j)=>{p.classList.toggle('active',i===j)});
+  tabs.forEach((t,j)=>{t.classList.toggle('active',i===j)});
+  resetSim(i);
+}
+
+function getCanvas(i){return document.getElementById('c'+i);}
+
+// helpers
+function setW(canvas){canvas.width=canvas.offsetWidth||700;}
+
+// ── Sim 0: 등가속도 ──
+let s0={t:0,x:0,v:0,running:false};
+function resetSim(i){
+  if(anim[i]){cancelAnimationFrame(anim[i]);anim[i]=null;}
+  running[i]=false;
+  if(i===0){s0={t:0,x:0,v:0};drawSim0();}
+  if(i===1){s1={t:0,trail:[],done:false};drawSim1();}
+  if(i===2){s2={t:0,x:0,v:0};drawSim2();}
+  if(i===3){s3={t:0,y:0,v:0,done:false};drawSim3();}
+}
+function startSim(i){
+  if(running[i])return;
+  if(i===0)loop0();
+  if(i===1)loop1();
+  if(i===2)loop2();
+  if(i===3)loop3();
+}
+
+function drawSim0(){
+  const cv=getCanvas(0);setW(cv);
+  const cx=cv.getContext('2d');
+  const W=cv.width,H=cv.height;
+  cx.clearRect(0,0,W,H);
+  // ground line
+  cx.strokeStyle='#e0e7ff';cx.lineWidth=2;
+  cx.beginPath();cx.moveTo(0,H-40);cx.lineTo(W,H-40);cx.stroke();
+  // track marks
+  for(let i=0;i<=10;i++){
+    const tx=i*(W/10);
+    cx.fillStyle='#aab';cx.font='10px sans-serif';
+    cx.fillText(i*10+'m',tx-6,H-10);
+    cx.strokeStyle='#dde';cx.beginPath();cx.moveTo(tx,H-40);cx.lineTo(tx,H-30);cx.stroke();
+  }
+  // ball
+  const maxX=100;
+  const bx=Math.min(s0.x/maxX,1)*(W-40)+20;
+  const by=H-55;
+  cx.beginPath();cx.arc(bx,by,14,0,Math.PI*2);
+  cx.fillStyle='#3b5bdb';cx.fill();
+  // velocity arrow
+  const vscale=Math.min(Math.abs(s0.v)/3,80);
+  const dir=s0.v>=0?1:-1;
+  if(Math.abs(s0.v)>0.5){
+    cx.strokeStyle='#f03e3e';cx.lineWidth=3;
+    cx.beginPath();cx.moveTo(bx,by);cx.lineTo(bx+dir*vscale,by);cx.stroke();
+    cx.fillStyle='#f03e3e';
+    cx.beginPath();cx.moveTo(bx+dir*vscale,by-5);cx.lineTo(bx+dir*vscale+dir*10,by);cx.lineTo(bx+dir*vscale,by+5);cx.fill();
+  }
+  // labels
+  cx.fillStyle='#3b5bdb';cx.font='bold 13px sans-serif';
+  cx.fillText('v = '+s0.v.toFixed(1)+' m/s',bx-20,by-22);
+  // stats
+  document.getElementById('s0_t').textContent=s0.t.toFixed(2)+' s';
+  document.getElementById('s0_v').textContent=s0.v.toFixed(1)+' m/s';
+  document.getElementById('s0_x').textContent=s0.x.toFixed(1)+' m';
+}
+
+let lastTime0=null;
+function loop0(ts){
+  if(!lastTime0)lastTime0=ts;
+  const dt=Math.min((ts-lastTime0)/1000,0.05);lastTime0=ts;
+  const v0=+document.getElementById('v0_0').value;
+  const a=+document.getElementById('a0').value;
+  s0.v=v0+a*s0.t;
+  s0.x=v0*s0.t+0.5*a*s0.t*s0.t;
+  s0.t+=dt;
+  drawSim0();
+  if(s0.x>=100||s0.x<=-5||(s0.v<=0&&a<=0&&s0.t>0.5)){running[0]=false;lastTime0=null;return;}
+  running[0]=true;
+  anim[0]=requestAnimationFrame(loop0);
+}
+function startSim(i){
+  if(running[i])return;
+  running[i]=true;
+  if(i===0){lastTime0=null;anim[0]=requestAnimationFrame(loop0);}
+  if(i===1){lastTime1=null;anim[1]=requestAnimationFrame(loop1);}
+  if(i===2){lastTime2=null;anim[2]=requestAnimationFrame(loop2);}
+  if(i===3){lastTime3=null;anim[3]=requestAnimationFrame(loop3);}
+}
+
+// slider live update
+['v0_0','a0'].forEach(id=>{
+  document.getElementById(id).addEventListener('input',function(){
+    const suffix=id==='a0'?' m/s²':' m/s';
+    document.getElementById(id+'_v').textContent=this.value+suffix;
+    if(!running[0])drawSim0();
+  });
+});
+
+// ── Sim 1: 포물선 ──
+let s1={t:0,trail:[],done:false};
+const G=9.8;
+function drawSim1(){
+  const cv=getCanvas(1);setW(cv);
+  const cx=cv.getContext('2d');
+  const W=cv.width,H=cv.height;
+  cx.clearRect(0,0,W,H);
+  const v0=+document.getElementById('v0_1').value;
+  const ang=+document.getElementById('ang1').value*Math.PI/180;
+  const R=v0*v0*Math.sin(2*ang)/G;
+  const Hmax=v0*v0*Math.sin(ang)*Math.sin(ang)/(2*G);
+  const T=2*v0*Math.sin(ang)/G;
+  const scX=(W-60)/Math.max(R,1);
+  const scY=(H-60)/Math.max(Hmax,1);
+  const sc=Math.min(scX,scY)*0.9;
+  const ox=30,oy=H-30;
+  // axes
+  cx.strokeStyle='#c5d0f5';cx.lineWidth=1.5;
+  cx.beginPath();cx.moveTo(ox,30);cx.lineTo(ox,oy);cx.lineTo(W-10,oy);cx.stroke();
+  // dashed max height
+  if(s1.trail.length>0){
+    cx.setLineDash([5,5]);cx.strokeStyle='#74c0fc';
+    cx.beginPath();cx.moveTo(ox,oy-Hmax*sc);cx.lineTo(ox+R/2*sc,oy-Hmax*sc);cx.stroke();
+    cx.setLineDash([]);
+    cx.fillStyle='#228be6';cx.font='11px sans-serif';
+    cx.fillText('H='+Hmax.toFixed(1)+'m',ox+4,oy-Hmax*sc-4);
+  }
+  // trail
+  cx.beginPath();cx.strokeStyle='#94d82d';cx.lineWidth=2.5;
+  s1.trail.forEach((p,i)=>{
+    const px=ox+p.x*sc,py=oy-p.y*sc;
+    i===0?cx.moveTo(px,py):cx.lineTo(px,py);
+  });
+  cx.stroke();
+  // ball
+  if(s1.trail.length>0&&!s1.done){
+    const last=s1.trail[s1.trail.length-1];
+    cx.beginPath();cx.arc(ox+last.x*sc,oy-last.y*sc,12,0,Math.PI*2);
+    cx.fillStyle='#3b5bdb';cx.fill();
+  }
+  // range label
+  if(s1.done){
+    cx.fillStyle='#e03131';cx.font='bold 12px sans-serif';
+    cx.fillText('R='+R.toFixed(1)+'m',ox+R*sc-40,oy+18);
+    cx.strokeStyle='#e03131';cx.lineWidth=2;
+    cx.beginPath();cx.moveTo(ox,oy+12);cx.lineTo(ox+R*sc,oy+12);cx.stroke();
+  }
+  // angle arc
+  cx.strokeStyle='#f08c00';cx.lineWidth=2;
+  cx.beginPath();cx.arc(ox,oy,35,-(ang),0,true);cx.stroke();
+  cx.fillStyle='#e67700';cx.font='12px sans-serif';
+  cx.fillText(Math.round(ang*180/Math.PI)+'°',ox+20,oy-12);
+  // stats
+  document.getElementById('s1_range').textContent=R.toFixed(1)+' m';
+  document.getElementById('s1_h').textContent=Hmax.toFixed(1)+' m';
+  document.getElementById('s1_t').textContent=T.toFixed(2)+' s';
+}
+
+let lastTime1=null;
+function loop1(ts){
+  if(!lastTime1)lastTime1=ts;
+  const dt=Math.min((ts-lastTime1)/1000,0.05);lastTime1=ts;
+  const v0=+document.getElementById('v0_1').value;
+  const ang=+document.getElementById('ang1').value*Math.PI/180;
+  s1.t+=dt;
+  const x=v0*Math.cos(ang)*s1.t;
+  const y=v0*Math.sin(ang)*s1.t-0.5*G*s1.t*s1.t;
+  if(y<0&&s1.t>0.1){s1.done=true;drawSim1();running[1]=false;lastTime1=null;return;}
+  s1.trail.push({x,y:Math.max(y,0)});
+  drawSim1();
+  anim[1]=requestAnimationFrame(loop1);
+}
+
+['v0_1','ang1'].forEach(id=>{
+  document.getElementById(id).addEventListener('input',function(){
+    const suffix=id==='ang1'?'°':' m/s';
+    document.getElementById(id+'_v').textContent=this.value+suffix;
+    if(!running[1]){s1={t:0,trail:[],done:false};drawSim1();}
+  });
+});
+
+// ── Sim 2: 뉴턴 제2법칙 ──
+let s2={t:0,x:0,v:0};
+function getNet(){
+  const F=+document.getElementById('F2').value;
+  const m=+document.getElementById('m2').value;
+  const mu=+document.getElementById('mu2').value;
+  const fric=mu*m*9.8;
+  return Math.max(F-fric,0)/m;
+}
+function drawSim2(){
+  const cv=getCanvas(2);setW(cv);
+  const cx=cv.getContext('2d');
+  const W=cv.width,H=cv.height;
+  cx.clearRect(0,0,W,H);
+  const F=+document.getElementById('F2').value;
+  const m=+document.getElementById('m2').value;
+  const mu=+document.getElementById('mu2').value;
+  const fric=mu*m*9.8;
+  const fnet=Math.max(F-fric,0);
+  const a=fnet/m;
+  // ground
+  cx.fillStyle='#e0e7ff';cx.fillRect(0,H-30,W,30);
+  cx.strokeStyle='#adb5bd';cx.lineWidth=1;
+  for(let i=0;i<W;i+=20){cx.beginPath();cx.moveTo(i,H-30);cx.lineTo(i-10,H);cx.stroke();}
+  // block
+  const maxX=100;
+  const bx=20+Math.min(s2.x/maxX,0.9)*(W-100);
+  const by=H-80;
+  cx.fillStyle='#3b5bdb';cx.fillRect(bx,by,50,50);cx.strokeStyle='#2f4ac7';cx.lineWidth=2;cx.strokeRect(bx,by,50,50);
+  cx.fillStyle='#fff';cx.font='bold 13px sans-serif';cx.textAlign='center';
+  cx.fillText(m+'kg',bx+25,by+30);cx.textAlign='left';
+  // force arrow
+  cx.strokeStyle='#f03e3e';cx.lineWidth=3;
+  const fsc=Math.min(F/5,120);
+  cx.beginPath();cx.moveTo(bx+50,by+25);cx.lineTo(bx+50+fsc,by+25);cx.stroke();
+  cx.fillStyle='#f03e3e';cx.beginPath();cx.moveTo(bx+50+fsc,by+20);cx.lineTo(bx+60+fsc,by+25);cx.lineTo(bx+50+fsc,by+30);cx.fill();
+  cx.fillStyle='#f03e3e';cx.font='11px sans-serif';cx.fillText('F='+F+'N',bx+55+fsc/2,by+18);
+  // friction arrow
+  if(fric>0){
+    const fsc2=Math.min(fric/5,80);
+    cx.strokeStyle='#f08c00';cx.lineWidth=3;
+    cx.beginPath();cx.moveTo(bx,by+25);cx.lineTo(bx-fsc2,by+25);cx.stroke();
+    cx.fillStyle='#f08c00';cx.font='11px sans-serif';
+    cx.fillText('f='+fric.toFixed(0)+'N',bx-fsc2-5,by+18);
+  }
+  // stats
+  document.getElementById('s2_a').textContent=a.toFixed(2)+' m/s²';
+  document.getElementById('s2_v').textContent=s2.v.toFixed(1)+' m/s';
+  document.getElementById('s2_f').textContent=fnet.toFixed(1)+' N';
+}
+
+let lastTime2=null;
+function loop2(ts){
+  if(!lastTime2)lastTime2=ts;
+  const dt=Math.min((ts-lastTime2)/1000,0.05);lastTime2=ts;
+  const a=getNet();
+  s2.v+=a*dt;
+  s2.x+=s2.v*dt;
+  s2.t+=dt;
+  drawSim2();
+  if(s2.x>=100){running[2]=false;lastTime2=null;return;}
+  anim[2]=requestAnimationFrame(loop2);
+}
+
+['F2','m2','mu2'].forEach(id=>{
+  document.getElementById(id).addEventListener('input',function(){
+    let suffix=id==='F2'?' N':id==='m2'?' kg':'';
+    let val=id==='mu2'?parseFloat(this.value).toFixed(2):this.value+suffix;
+    document.getElementById(id+'_v').textContent=val;
+    if(!running[2])drawSim2();
+  });
+});
+
+// ── Sim 3: 자유낙하 ──
+let s3={t:0,y:0,v:0,done:false};
+function drawSim3(){
+  const cv=getCanvas(3);setW(cv);
+  const cx=cv.getContext('2d');
+  const W=cv.width,H=cv.height;
+  cx.clearRect(0,0,W,H);
+  const h0=+document.getElementById('h3').value;
+  const g=+document.getElementById('planet3').value;
+  const scY=(H-60)/h0;
+  const oy=H-30;
+  // building / ruler
+  cx.fillStyle='#e0e7ff';cx.fillRect(10,oy-h0*scY-5,30,h0*scY+5);
+  cx.strokeStyle='#adb5bd';cx.lineWidth=1;
+  for(let i=0;i<=h0;i+=10){
+    const py=oy-i*scY;
+    cx.beginPath();cx.moveTo(10,py);cx.lineTo(40,py);cx.stroke();
+    cx.fillStyle='#888';cx.font='10px sans-serif';cx.fillText(i+'m',42,py+4);
+  }
+  // ground
+  cx.fillStyle='#d3f9d8';cx.fillRect(0,oy,W,H-oy);
+  // dashed path
+  cx.setLineDash([4,6]);cx.strokeStyle='#74c0fc';cx.lineWidth=1.5;
+  cx.beginPath();cx.moveTo(W/2,oy-h0*scY);cx.lineTo(W/2,oy);cx.stroke();
+  cx.setLineDash([]);
+  // ball
+  const curH=h0-s3.y;
+  const by2=oy-Math.max(curH,0)*scY;
+  cx.beginPath();cx.arc(W/2,by2,16,0,Math.PI*2);
+  cx.fillStyle='#f03e3e';cx.fill();
+  // speed label
+  if(s3.v>0){
+    cx.fillStyle='#e03131';cx.font='bold 12px sans-serif';
+    cx.fillText('v='+s3.v.toFixed(1)+'m/s',W/2+22,by2+5);
+  }
+  // impact flash
+  if(s3.done){
+    cx.fillStyle='rgba(255,200,0,0.35)';cx.beginPath();cx.arc(W/2,oy,40,0,Math.PI*2);cx.fill();
+    cx.fillStyle='#e67700';cx.font='bold 14px sans-serif';
+    cx.fillText('충돌!',W/2-18,oy+18);
+  }
+  document.getElementById('s3_t').textContent=s3.t.toFixed(2)+' s';
+  document.getElementById('s3_v').textContent=s3.v.toFixed(1)+' m/s';
+  document.getElementById('s3_y').textContent=s3.y.toFixed(1)+' m';
+}
+
+let lastTime3=null;
+function loop3(ts){
+  if(!lastTime3)lastTime3=ts;
+  const dt=Math.min((ts-lastTime3)/1000,0.05);lastTime3=ts;
+  const g=+document.getElementById('planet3').value;
+  const h0=+document.getElementById('h3').value;
+  s3.t+=dt;
+  s3.y=0.5*g*s3.t*s3.t;
+  s3.v=g*s3.t;
+  if(s3.y>=h0){s3.y=h0;s3.v=Math.sqrt(2*g*h0);s3.done=true;drawSim3();running[3]=false;lastTime3=null;return;}
+  drawSim3();
+  anim[3]=requestAnimationFrame(loop3);
+}
+
+['h3','planet3'].forEach(id=>{
+  const el=document.getElementById(id);
+  if(el.tagName==='INPUT'){
+    el.addEventListener('input',function(){
+      document.getElementById('h3_v').textContent=this.value+' m';
+      if(!running[3]){s3={t:0,y:0,v:0,done:false};drawSim3();}
+    });
+  } else {
+    el.addEventListener('change',()=>{if(!running[3]){s3={t:0,y:0,v:0,done:false};drawSim3();}});
+  }
+});
+
+// init draw
+setTimeout(()=>{drawSim0();drawSim1();drawSim2();drawSim3();},100);
+window.addEventListener('resize',()=>{
+  if(!running[0])drawSim0();if(!running[1])drawSim1();
+  if(!running[2])drawSim2();if(!running[3])drawSim3();
+});
+</script>
+</body>
+</html>
